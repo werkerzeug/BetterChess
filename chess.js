@@ -143,6 +143,10 @@ let rulesShown = false;
 
 let currentlyGambling = false;
 
+let joeBidenHasGambled = false;
+
+let hitByTrain = []
+
 function createBoard() {
     const board = document.getElementById('chessboard');
     
@@ -740,7 +744,7 @@ function select(square, row, col) {
                 selectedOldSquare = null;
             }
         }
-    } else if (selectedOldSquare == null && piece !== ' ' && piece !== 'j' & piece !== 'J') {
+    } else if (selectedOldSquare == null && piece !== ' ' && piece !== 'j' && piece !== 'J') {
         if (currentTurn == null || (piece == piece.toLowerCase()) == currentTurn) {
             console.log(`Selecting piece`);
             selectedOldSquare = square;
@@ -1059,6 +1063,43 @@ async function updateBoard() {
             }
         }
     }
+    rowloop: for (let r = (colLength/2)-1; r <= (colLength/2); r++) {
+        for (let c = rowLength-2; c < rowLength; c++) {
+            let row;
+            let col;
+            if (flipped) { row = (colLength-r)-1; col = (rowLength-c)-1; }
+            else { row = r; col = c; }
+            if (initialBoard[row][col] !== ' ' && initialBoard[row][col].toLowerCase() !== 'a' && !casinoCaptured) {
+                if (!currentlyGambling) {
+                    if (initialBoard[row][col].toLowerCase() === 'j') {
+                        // Prevent Joe Biden from infinitely gambling
+                        if (!joeBidenHasGambled) {
+                            // Prevent Joe Biden from despawning after gambling
+                            lastBoard = structuredClone(initialBoard);
+                            joeBidenHasGambled = true;
+                            currentlyGambling = true;
+                            await gamble();
+                        } 
+                    } else {
+                        currentlyGambling = true;
+                        await gamble();
+                    }
+                }
+            } else if (initialBoard[row][col].toLowerCase() === 'a' && !casinoCaptured) {
+                casinoCaptured = true;
+                for (let xr = (colLength/2)-1; xr <= (colLength/2); xr++) {
+                    for (let xc = rowLength-2; xc < rowLength; xc++) {
+                        let xrow;
+                        let xcol;
+                        if (flipped) { xrow = (colLength-xr)-1; xcol = (rowLength-xc)-1; }
+                        else { xrow = xr; xcol = xc; }
+                        initialBoard[xrow] = initialBoard[xrow].substring(0, xcol) + 'x' + initialBoard[xrow].substring(parseInt(xcol) + 1);
+                    }
+                }
+                break rowloop;
+            }
+        }
+    }
     if (movesUntilArrival === 0 && movesUntilDeparture === 2 && !trainArrived) {
         console.log('train arrival');
 
@@ -1066,15 +1107,33 @@ async function updateBoard() {
         sound.volume = 0.6;
         sound.play();
         
+        // check if arriving train runs over any kings
         if (initialBoard[(colLength/2)-2].includes('k') || initialBoard[(colLength/2)+1].includes('k')) {
-            checkmate = true;
-        } else if (initialBoard[(colLength/2)-2].includes('K') || initialBoard[(colLength/2)+1].includes('K')) {
-            checkmate = true;
-        } else {
-            initialBoard[(colLength/2)-2] = ' '.repeat((rowLength/2)-1) + whiteTrainPassengers.join('') + ' '.repeat((rowLength/2)-1);
-            initialBoard[(colLength/2)+1] = ' '.repeat((rowLength/2)-1) + blackTrainPassengers.join('') + ' '.repeat((rowLength/2)-1);
+            hitByTrain.push("black");
+        } if (initialBoard[(colLength/2)-2].includes('K') || initialBoard[(colLength/2)+1].includes('K')) {
+            hitByTrain.push("white");
+        } if (initialBoard[(colLength/2)+1].includes('k') || initialBoard[(colLength/2)+1].includes('K')) {
+            hitByTrain.push("black");
+        } if (initialBoard[(colLength/2)-2].includes('k') || initialBoard[(colLength/2)-2].includes('K')) {
+            hitByTrain.push("white");
         }
+        initialBoard[(colLength/2)-2] = ' '.repeat((rowLength/2)-1) + whiteTrainPassengers.join('') + ' '.repeat((rowLength/2)-1);
+        initialBoard[(colLength/2)+1] = ' '.repeat((rowLength/2)-1) + blackTrainPassengers.join('') + ' '.repeat((rowLength/2)-1);
         
+        if (hitByTrain.length > 0) {
+            checkmate = true;
+        }
+
+        // Save board state after train arrival
+        // so if Joe Biden gambles it doesnt revive everyone who was hit by the train
+        lastBoard = structuredClone(initialBoard);
+        // Check if train arrival causes instant win
+        if (currentTurn == 0 && inCheck(initialBoard) === "black") {
+            checkmate = true;
+        }
+        if (currentTurn == 1 && inCheck(initialBoard) === "white") {
+            checkmate = true;
+        }
         trainArrived = true;
     }
     if (movesUntilDeparture === 0 ) {
@@ -1111,9 +1170,24 @@ async function updateBoard() {
         }
         
         if ((blackTrainPassengers.includes('k') || whiteTrainPassengers.includes('k')) && (blackTrainPassengers.includes('K') || whiteTrainPassengers.includes('K'))) {
+            console.log('stalemate');
             stalemate = true;
         }
-        
+        // Check if departing train runs over any kings
+        if ((initialBoard[(colLength/2)-2].includes('k') || initialBoard[(colLength/2)+1].includes('k')) && !blackTrainPassengers.includes('k') && !whiteTrainPassengers.includes('k')) {
+            hitByTrain.push("black");
+        } if ((initialBoard[(colLength/2)-2].includes('K') || initialBoard[(colLength/2)+1].includes('K')) && !blackTrainPassengers.includes('K') && !whiteTrainPassengers.includes('K')) {
+            hitByTrain.push("white");
+        } if ((initialBoard[(colLength/2)+1].includes('k') || initialBoard[(colLength/2)+1].includes('K')) && !blackTrainPassengers.includes('k') && !whiteTrainPassengers.includes('K')) {
+            hitByTrain.push("black");
+        } if ((initialBoard[(colLength/2)-2].includes('k') || initialBoard[(colLength/2)-2].includes('K')) && !blackTrainPassengers.includes('k') && !whiteTrainPassengers.includes('K')) {
+            hitByTrain.push("white");
+        }
+
+        if (hitByTrain.length > 0) {
+            checkmate = true;
+        }
+
         initialBoard[(colLength/2)-2] = ' '.repeat(rowLength);
         initialBoard[(colLength/2)+1] = ' '.repeat(rowLength);
         
@@ -1122,32 +1196,7 @@ async function updateBoard() {
         
         trainArrived = false;
     }
-    rowloop: for (let r = (colLength/2)-1; r <= (colLength/2); r++) {
-        for (let c = rowLength-2; c < rowLength; c++) {
-            let row;
-            let col;
-            if (flipped) { row = (colLength-r)-1; col = (rowLength-c)-1; }
-            else { row = r; col = c; }
-            if (initialBoard[row][col] !== ' ' && initialBoard[row][col].toLowerCase() !== 'a' && !casinoCaptured) {
-                if (!currentlyGambling) {
-                    currentlyGambling = true;
-                    await gamble();
-                }
-            } else if (initialBoard[row][col].toLowerCase() === 'a' && !casinoCaptured) {
-                casinoCaptured = true;
-                for (let xr = (colLength/2)-1; xr <= (colLength/2); xr++) {
-                    for (let xc = rowLength-2; xc < rowLength; xc++) {
-                        let xrow;
-                        let xcol;
-                        if (flipped) { xrow = (colLength-xr)-1; xcol = (rowLength-xc)-1; }
-                        else { xrow = xr; xcol = xc; }
-                        initialBoard[xrow] = initialBoard[xrow].substring(0, xcol) + 'x' + initialBoard[xrow].substring(parseInt(xcol) + 1);
-                    }
-                }
-                break rowloop;
-            }
-        }
-    }
+    
     if (!initialBoard.join('').includes('j')) {
         blackJoeOldSquare = null;
         blackJoeSquare = null;
@@ -1158,14 +1207,25 @@ async function updateBoard() {
     }
     if (joeBidenTurns < 1) {
         let bidenSound = null
+        joeBidenHasGambled = false;
         if (!bidensStarted) {
             ['j', 'J'].forEach(piece => {
                 let row = Math.round(Math.random() * (colLength-1));
                 let col = Math.round(Math.random() * (rowLength-1));
-                
+
                 while (initialBoard[row][col] == 'k' || initialBoard[row][col] == 'K' || initialBoard[row][col] == 'j' || initialBoard[row][col] == 'J') {
                     row = Math.round(Math.random() * (colLength-1));
                     col = Math.round(Math.random() * (rowLength-1));
+                }
+                // If Joe Biden starts on the chick-fil-a sauce, remove the whole sauce
+                if (initialBoard[row][col].toLowerCase() === 'c' || initialBoard[row][col].toLowerCase() === 'h') {
+                    for (let r = 0; r < colLength; r++) {
+                        for (let c = 0; c < rowLength; c++) {
+                            if (initialBoard[r][c].toLowerCase() === 'c' || initialBoard[r][c].toLowerCase() === 'h') {
+                                initialBoard[r] = initialBoard[r].substring(0, c) + ' ' + initialBoard[r].substring(parseInt(c) + 1);
+                            }
+                        }
+                    }
                 }
                 
                 if (piece == 'j') { blackJoeSquare = { dataset: { row: row, col: col } } }
@@ -1177,12 +1237,41 @@ async function updateBoard() {
             bidensStarted = true;
         } else {
             if (initialBoard.join('').includes('j')) {
-                let row = Math.round(Math.random() * (colLength-1));
-                let col = Math.round(Math.random() * (rowLength-1));
-                
-                while (initialBoard[row][col] == 'k' || initialBoard[row][col] == 'K') {
+                // Black Joe
+                let possiblePositions = [];
+                if (gambleBoard[blackJoeSquare.dataset.row][blackJoeSquare.dataset.col] === 'w') {
+                    for (let r = 0; r < colLength; r++) {
+                        for (let c = 0; c < rowLength; c++) {
+                            if (initialBoard[r][c].toUpperCase() === initialBoard[r][c] && initialBoard[r][c] !== ' ' && initialBoard[r][c] !== 'k' && initialBoard[r][c] !== 'K') {
+                                possiblePositions.push({ dataset: { row: r, col: c } });
+                            }
+                        }
+                    }
+                } else if (gambleBoard[blackJoeSquare.dataset.row][blackJoeSquare.dataset.col] === 'l') {
+                    for (let r = 0; r < colLength; r++) {
+                        for (let c = 0; c < rowLength; c++) {
+                            if (initialBoard[r][c].toLowerCase() === initialBoard[r][c] && initialBoard[r][c] !== ' ' && initialBoard[r][c] !== 'k' && initialBoard[r][c] !== 'K') {
+                                possiblePositions.push({ dataset: { row: r, col: c } });
+                            }
+                        }
+                    }
+                }
+                let row;
+                let col;
+                if (possiblePositions.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * possiblePositions.length);
+                    const randomPosition = possiblePositions[randomIndex];
+                    row = randomPosition.dataset.row;
+                    col = randomPosition.dataset.col;
+                } else {
+
                     row = Math.round(Math.random() * (colLength-1));
                     col = Math.round(Math.random() * (rowLength-1));
+                    
+                    while (initialBoard[row][col] == 'k' || initialBoard[row][col] == 'K') {
+                        row = Math.round(Math.random() * (colLength-1));
+                        col = Math.round(Math.random() * (rowLength-1));
+                    }
                 }
 
                 for (let r = 0; r < rowLength; r++) {
@@ -1197,12 +1286,41 @@ async function updateBoard() {
                 bidenSound = new Audio('assets/audio/joebiden.wav');
             }
             if (initialBoard.join('').includes('J')) {
-                let row = Math.round(Math.random() * (colLength-1));
-                let col = Math.round(Math.random() * (rowLength-1));
-                
-                while (initialBoard[row][col] == 'k' || initialBoard[row][col] == 'K') {
+                // White Joe
+                let possiblePositions = [];
+                if (gambleBoard[whiteJoeSquare.dataset.row][whiteJoeSquare.dataset.col] === 'w') {
+                    for (let r = 0; r < colLength; r++) {
+                        for (let c = 0; c < rowLength; c++) {
+                            if (initialBoard[r][c].toLowerCase() === initialBoard[r][c] && initialBoard[r][c] !== ' ' && initialBoard[r][c] !== 'k' && initialBoard[r][c] !== 'K') {
+                                possiblePositions.push({ dataset: { row: r, col: c } });
+                            }
+                        }
+                    }
+                } else if (gambleBoard[whiteJoeSquare.dataset.row][whiteJoeSquare.dataset.col] === 'l' ) {
+                    for (let r = 0; r < colLength; r++) {
+                        for (let c = 0; c < rowLength; c++) {
+                            if (initialBoard[r][c].toUpperCase() === initialBoard[r][c] && initialBoard[r][c] !== ' ' && initialBoard[r][c] !== 'k' && initialBoard[r][c] !== 'K') {
+                                possiblePositions.push({ dataset: { row: r, col: c } });
+                            }
+                        }
+                    }
+                }
+                let row;
+                let col;
+                if (possiblePositions.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * possiblePositions.length);
+                    const randomPosition = possiblePositions[randomIndex];
+                    row = randomPosition.dataset.row;
+                    col = randomPosition.dataset.col;
+                } else {
+
                     row = Math.round(Math.random() * (colLength-1));
                     col = Math.round(Math.random() * (rowLength-1));
+                    
+                    while (initialBoard[row][col] == 'k' || initialBoard[row][col] == 'K') {
+                        row = Math.round(Math.random() * (colLength-1));
+                        col = Math.round(Math.random() * (rowLength-1));
+                    }
                 }
                 
                 for (let r = 0; r < colLength; r++) {
@@ -1342,9 +1460,9 @@ async function updateBoard() {
     }
     if (checkmate || stalemate) {
         let winningText = '';
-        if (inCheck(initialBoard) == 'white') {
+        if ((inCheck(initialBoard) == 'white' || hitByTrain.includes('white')) && !hitByTrain.includes('black')) {
             winningText = 'Black wins';
-        } else if (inCheck(initialBoard) == 'black') {
+        } else if ((inCheck(initialBoard) == 'black' || hitByTrain.includes('black')) && !hitByTrain.includes('white')) {
             winningText = 'White wins';
         } else {
             winningText = 'Stalemate'
