@@ -1124,6 +1124,31 @@ async function updateBoard() {
             checkmate = true;
         }
 
+        // Reset the blackJoeSquare and whiteJoeSquare variables if Joe Biden arrives by train
+        if (whiteTrainPassengers.includes('j') || blackTrainPassengers.includes('j')) {
+            for (let c = 0; c < rowLength; c++) {
+                if (initialBoard[(colLength/2)-2][c] === 'j') {
+                    blackJoeSquare = { dataset: { row: (colLength/2)-1, col: c } };
+                }
+            }
+            for (let c = 0; c < rowLength; c++) {
+                if (initialBoard[(colLength/2)+1][c] === 'j') {
+                    blackJoeSquare = { dataset: { row: (colLength/2)+2, col: c } };
+                }
+            }
+        }
+        if (whiteTrainPassengers.includes('J') || blackTrainPassengers.includes('J')) {
+            for (let c = 0; c < rowLength; c++) {
+                if (initialBoard[(colLength/2)-2][c] === 'J') {
+                    whiteJoeSquare = { dataset: { row: (colLength/2)-1, col: c } };
+                }
+            }
+            for (let c = 0; c < rowLength; c++) {
+                if (initialBoard[(colLength/2)+1][c] === 'J') {
+                    whiteJoeSquare = { dataset: { row: (colLength/2)+2, col: c } };
+                }
+            }
+        }
         // Save board state after train arrival
         // so if Joe Biden gambles it doesnt revive everyone who was hit by the train
         lastBoard = structuredClone(initialBoard);
@@ -1193,7 +1218,13 @@ async function updateBoard() {
         
         movesUntilArrival = 5;
         movesUntilDeparture = 2;
-        
+        // Check if train departure causes instant win
+        if (currentTurn == 0 && inCheck(initialBoard) === "black") {
+            checkmate = true;
+        }
+        if (currentTurn == 1 && inCheck(initialBoard) === "white") {
+            checkmate = true;
+        }
         trainArrived = false;
     }
     
